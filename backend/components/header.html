@@ -1,0 +1,57 @@
+<nav class="navbar navbar-expand-lg fixed-top shadow-none" id="mainNavbar">
+    <div class="container">
+        <a class="navbar-brand animate__animated animate__fadeInDown" href="index.html">
+            <img src="images/logo.png" alt="TIS Logo" id="nav-logo" style="height: 60px; transition: 0.3s;" onerror="this.onerror=null; this.src='https://via.placeholder.com/150x50/ffffff/d71920?text=TIS+LOGO';">
+        </a>
+        
+        <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item"><a class="nav-link fw-bold px-3" href="index.html">Trang chủ</a></li>
+                <li class="nav-item"><a class="nav-link fw-bold px-3" href="products.html">Sản phẩm</a></li>
+                <li class="nav-item"><a class="nav-link fw-bold px-3" href="#news">Tin tức</a></li>
+            </ul>
+
+            <form class="d-flex mx-auto header-search-form position-relative" onsubmit="handleGlobalSearch(event)" style="max-width: 400px; width: 100%;">
+                <div class="input-group search-group-custom">
+                    <input type="text" id="global-search" class="form-control rounded-pill-start border-end-0" placeholder="Tìm gói bảo hiểm..." autocomplete="off">
+                    <button class="btn btn-outline-secondary rounded-pill-end border-start-0 bg-white" type="submit">
+                        <i class="fas fa-search text-danger"></i>
+                    </button>
+                </div>
+                
+                <div id="search-suggestions" class="search-suggestions-box d-none shadow-lg rounded-4">
+                    </div>
+            </form>
+            
+            <div class="d-flex align-items-center ms-auto animate__animated animate__fadeInDown">
+                <a href="user/cart.html" class="nav-cart-btn me-3 position-relative">
+                    <i class="fas fa-shopping-basket fs-4 text-dark"></i>
+                    <span class="badge-cart-custom" id="cart-count-badge">0</span>
+                </a>
+
+                <div id="nav-auth">
+                    <a href="login.html" class="btn btn-outline-danger rounded-pill px-4 fw-bold me-2">Đăng nhập</a>
+                </div>
+                
+                <div id="nav-user" class="d-none">
+                    <div class="dropdown">
+                        <button class="btn btn-user-dropdown rounded-pill fw-bold border py-1 pe-3" type="button" data-bs-toggle="dropdown">
+                            <img src="https://ui-avatars.com/api/?name=User&background=random" class="rounded-circle me-2" style="width: 30px; height: 30px;">
+                            <span id="username-display" class="small">User</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
+                            <li><a class="dropdown-item" href="user/profile.html"><i class="fas fa-id-card me-2"></i>Hồ sơ</a></li>
+                            <li><a class="dropdown-item d-none" id="admin-link" href="admin/index.html"><i class="fas fa-user-shield me-2 text-danger"></i>Quản trị</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger fw-bold" href="javascript:void(0)" onclick="logout()"><i class="fas fa-sign-out-alt me-2"></i>Thoát</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</nav>
