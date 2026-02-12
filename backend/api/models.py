@@ -69,11 +69,23 @@ class Product(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
     provider_name = models.CharField(max_length=255) # Tên đơn vị cung cấp (Sensitive) 
-    description = models.TextField()
+    short_description = models.TextField(blank=True, null=True) # Detail Base (chỉ text)
+    description = models.TextField(blank=True, null=True)       # Detail Final (CKEditor)
     is_featured = models.BooleanField(default=False) # Sản phẩm nổi bật 
     is_price_hidden = models.BooleanField(default=False, verbose_name="Giá liên hệ")
     target_audience = models.CharField(max_length=10, choices=(('ind', 'Cá nhân'), ('ent', 'Doanh nghiệp')))
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+    @property
+    def base_price(self):
+        # Lấy giá của gói đầu tiên để trả về cho FE nhanh
+        first_package = self.packages.first()
+        return first_package.price if first_package else None
+
+    @property
+    def category_name(self):
+        return self.category.name if self.category else "Chưa phân loại"
 
 class ProductImage(models.Model):
     """Cho phép upload nhiều ảnh """

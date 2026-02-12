@@ -1,27 +1,39 @@
+# backend/api/views.py
+
+import time
+from django.db import transaction
+from django.db.models import Sum
+from django.utils import timezone
 from rest_framework import viewsets, permissions, status, filters, mixins
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.authtoken.models import Token
-from rest_framework.authtoken.views import ObtainAuthToken
-from django.db.models import Sum
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 # Import Models
 from .models import (
-    Product, Order, News, User, EnterpriseEmployee, 
-    ConsultationRequest, ProductPackage, OrderItem, 
-    Cart, CartItem
+    Product, ProductImage, ProductPackage, Category,
+    Order, OrderItem, News, User, EnterpriseEmployee, 
+    ConsultationRequest, Cart, CartItem
 )
 
 # Import Serializers
 from .serializers import (
-    ProductSerializer, OrderSerializer, EnterpriseEmployeeSerializer,
-    RegisterSerializer, CartItemSerializer, OrderItemSerializer,
+    ProductSerializer, CategorySerializer, OrderSerializer, 
+    EnterpriseEmployeeSerializer, RegisterSerializer, 
+    CartItemSerializer, OrderItemSerializer,
     ProductPackageSerializer, ConsultationRequestSerializer, NewsSerializer
 )
 
-# Import Permissions
-from .permissions import IsOwnerOrAdmin
+# --- PHÂN QUYỀN TÙY CHỈNH (INTERNAL) ---
+
+class IsTISAdminOrStaff(permissions.BasePermission):
+    """
+    Quyền truy cập dành cho cấp quản trị dựa trên trường 'role' trong Model User.
+    """
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and \
+               (request.user.is_staff or request.user.role in ['super_admin', 'admin', 'staff'])
 
 # --- AUTH VIEWSETS ---
 
@@ -30,23 +42,8 @@ class RegisterView(viewsets.GenericViewSet, mixins.CreateModelMixin):
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
 
-class CustomLoginView(ObtainAuthToken):
-    def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data['user']
-        token, created = Token.objects.get_or_create(user=user)
-        return Response({
-            'token': token.key,
-            'user_id': user.pk,
-            'role': user.role,
-            'email': user.email
-        })
-
 class UserViewSet(viewsets.ModelViewSet):
-    """
-    Quản lý User & Lấy thông tin cá nhân (me)
-    """
+    """Quản lý thông tin người dùng và lấy dữ liệu cá nhân (me)"""
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
 
@@ -55,7 +52,7 @@ class UserViewSet(viewsets.ModelViewSet):
             return [permissions.AllowAny()]
         elif self.action == 'me':
             return [permissions.IsAuthenticated()]
-        return [permissions.IsAdminUser()]
+        return [IsTISAdminOrStaff()]
 
     @action(detail=False, methods=['get'])
     def me(self, request):
@@ -64,44 +61,104 @@ class UserViewSet(viewsets.ModelViewSet):
 
 # --- BUSINESS VIEWSETS ---
 
+class CategoryViewSet(viewsets.ModelViewSet):
+    """Quản lý danh mục bảo hiểm"""
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+    
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [permissions.AllowAny()]
+        # Chấp nhận Admin/Super Admin/Staff thực hiện ghi dữ liệu
+        return [IsTISAdminOrStaff()]
+
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all()
+    """Quản lý sản phẩm, giá phí và album ảnh"""
+    queryset = Product.objects.all().order_by('-created_at')
     serializer_class = ProductSerializer
     filter_backends = [filters.SearchFilter]
-    search_fields = ['name', 'category__name']
+    search_fields = ['name', 'category__name', 'provider_name']
 
     def get_permissions(self):
-        if self.action in ['create', 'update', 'destroy']:
-            return [permissions.IsAdminUser()]
-        return [permissions.AllowAny()]
+        if self.action in ['list', 'retrieve']:
+            return [permissions.AllowAny()]
+        return [IsTISAdminOrStaff()]
 
     @action(detail=False, methods=['get'])
     def featured(self, request):
-        products = Product.objects.filter(is_featured=True)
+        """Lấy danh sách sản phẩm nổi bật"""
+        products = self.queryset.filter(is_featured=True)
         serializer = self.get_serializer(products, many=True)
         return Response(serializer.data)
 
-
-# --- SỬA LẠI HÀM CREATE ĐỂ HỖ TRỢ NHIỀU ẢNH ---
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
-        # 1. Lưu thông tin cơ bản (Tên, giá, mô tả...)
+        """Xử lý tạo Sản phẩm + Gói giá + Nhiều ảnh trong 1 lần gửi"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         product = serializer.save()
 
-        # 2. Xử lý Upload nhiều ảnh (Album)
-        # Frontend sẽ gửi field tên là 'uploaded_images' (dạng list)
-        images = request.FILES.getlist('uploaded_images')
-        
-        if images:
-            from .models import ProductImage
-            for img in images:
-                ProductImage.objects.create(product=product, image=img)
+        # Xử lý Gói giá phí mặc định
+        base_price = request.data.get('base_price')
+        is_hidden = request.data.get('is_price_hidden')
+        if base_price and not (is_hidden == 'True' or is_hidden is True):
+            try:
+                # ÉP KIỂU SỐ ĐỂ ĐẢM BẢO KHÔNG LƯU 0
+                numeric_price = float(base_price) 
+                ProductPackage.objects.create(
+                    product=product,
+                    duration_label='1 Năm',
+                    duration_days=365,
+                    price=numeric_price
+                )
+            except (ValueError, TypeError):
+                print("Lỗi định dạng giá phí!")
 
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        # Xử lý Upload nhiều ảnh
+        images = request.FILES.getlist('uploaded_images')
+        for img in images:
+            ProductImage.objects.create(product=product, image=img)
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @transaction.atomic
+    def update(self, request, *args, **kwargs):
+        """Cập nhật Sản phẩm và đồng bộ hóa Gói giá/Ảnh"""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        product = serializer.save()
+
+        # Cập nhật hoặc Tạo mới gói giá
+        base_price = request.data.get('base_price')
+        if base_price:
+            ProductPackage.objects.update_or_create(
+                product=product,
+                duration_label='1 Năm',
+                defaults={'price': base_price, 'duration_days': 365}
+            )
+
+        # Thêm ảnh mới nếu có
+        images = request.FILES.getlist('uploaded_images')
+        for img in images:
+            ProductImage.objects.create(product=product, image=img)
+
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['delete'])
+    def delete_image(self, request, pk=None):
+        """Xóa lẻ một tấm ảnh trong album"""
+        image_id = request.data.get('image_id')
+        try:
+            img = ProductImage.objects.get(id=image_id, product_id=pk)
+            img.delete()
+            return Response({"message": "Đã xóa ảnh thành công"}, status=status.HTTP_204_NO_CONTENT)
+        except ProductImage.DoesNotExist:
+            return Response({"error": "Ảnh không tồn tại"}, status=status.HTTP_404_NOT_FOUND)
 
 class OrderViewSet(viewsets.ModelViewSet):
+    """Quản lý đơn hàng"""
     serializer_class = OrderSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -119,7 +176,6 @@ class OrderViewSet(viewsets.ModelViewSet):
         try:
             package = ProductPackage.objects.get(id=package_id)
             total = package.price * quantity
-            import time
             order_code = f"ORD-{int(time.time())}"
             
             order = Order.objects.create(
@@ -130,8 +186,6 @@ class OrderViewSet(viewsets.ModelViewSet):
             )
             OrderItem.objects.create(order=order, package=package, quantity=quantity)
             return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
-        except ProductPackage.DoesNotExist:
-            return Response({"error": "Gói sản phẩm không tồn tại"}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -146,28 +200,23 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         serializer.save(enterprise=self.request.user)
 
 class ConsultationRequestViewSet(viewsets.ModelViewSet):
-    """
-    Class này để khớp với urls.py (router.register(..., ConsultationRequestViewSet))
-    """
     queryset = ConsultationRequest.objects.all()
     serializer_class = ConsultationRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
-        if user.role == 'staff':
+        if user.role in ['admin', 'super_admin', 'staff']:
             return ConsultationRequest.objects.all() 
-        elif user.role == 'customer':
-            return ConsultationRequest.objects.filter(user=user)
-        return ConsultationRequest.objects.all()
+        return ConsultationRequest.objects.filter(user=user)
 
 class NewsViewSet(viewsets.ModelViewSet):
     queryset = News.objects.all()
     serializer_class = NewsSerializer
-    # Cho phép Admin đăng bài (create), khách chỉ xem (list/retrieve)
+
     def get_permissions(self):
         if self.action in ['create', 'update', 'destroy']:
-            return [permissions.IsAdminUser()]
+            return [IsTISAdminOrStaff()]
         return [permissions.AllowAny()]
 
 class CartViewSet(viewsets.ViewSet):
@@ -213,45 +262,21 @@ class CartViewSet(viewsets.ViewSet):
         except CartItem.DoesNotExist:
             return Response({"error": "Item not found"}, status=404)
 
+# --- UTILITY VIEWS ---
+
 class DashboardSummaryView(APIView):
-    """
-    APIView riêng cho Dashboard Summary để khớp với urls.py
-    """
-    permission_classes = [permissions.IsAdminUser]
+    """Báo cáo Dashboard tổng hợp cho quản trị viên"""
+    permission_classes = [IsTISAdminOrStaff]
 
     def get(self, request):
         total_revenue = Order.objects.filter(status='active').aggregate(Sum('total_amount'))['total_amount__sum'] or 0
         total_orders = Order.objects.count()
         pending_orders = Order.objects.filter(status='pending').count()
-        
-        # Lấy 5 đơn mới nhất
         recent_orders = Order.objects.order_by('-created_at')[:5]
-        recent_orders_data = OrderSerializer(recent_orders, many=True).data
 
         return Response({
             "revenue": total_revenue,
             "total_orders": total_orders,
             "pending_orders": pending_orders,
-            "recent_orders": recent_orders_data
+            "recent_orders": OrderSerializer(recent_orders, many=True).data
         })
-        
-        
-
-        
-from .models import Category
-from .serializers import CategorySerializer
-
-# Mở file views.py bên Backend (Django)
-from rest_framework.permissions import AllowAny, IsAdminUser
-
-class CategoryViewSet(viewsets.ModelViewSet):
-    queryset = Category.objects.all()
-    serializer_class = CategorySerializer
-    
-    # Ghi đè hàm phân quyền
-    def get_permissions(self):
-        # Nếu là hành động Xem danh sách (list) hoặc Xem chi tiết (retrieve) -> Mở cửa tự do
-        if self.action in ['list', 'retrieve']:
-            return [AllowAny()]
-        # Nếu là hành động Thêm/Sửa/Xóa -> Bắt buộc là Admin
-        return [IsAdminUser()]

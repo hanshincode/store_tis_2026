@@ -107,7 +107,36 @@ class NewsSerializer(serializers.ModelSerializer):
     
 from .models import Category
 
+# backend/api/serializers.py
+from rest_framework import serializers
+from django.utils.text import slugify
+from .models import Category, Product, ProductPackage, ProductImage
+
+# Hàm tiện ích chuyển tiếng Việt có dấu thành slug không dấu
+def unique_slugify(instance, value, slug_field_name='slug', queryset=None):
+    slug = slugify(value) # Ví dụ: "Bảo hiểm Xe" -> "bao-hiem-xe"
+    if not queryset:
+        queryset = instance.__class__.objects.all()
+    
+    # Kiểm tra nếu đã tồn tại slug này thì thêm số vào sau
+    original_slug = slug
+    counter = 1
+    while queryset.filter(**{slug_field_name: slug}).exists():
+        if instance.pk and queryset.filter(pk=instance.pk, **{slug_field_name: slug}).exists():
+            break
+        slug = f"{original_slug}-{counter}"
+        counter += 1
+    return slug
+
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = '__all__'
+        extra_kwargs = {'slug': {'required': False}} # Không bắt FE gửi slug
+
+    def create(self, validated_data):
+        # Tự sinh slug từ name nếu FE không gửi hoặc gửi trống
+        if 'name' in validated_data:
+            instance = Category(**validated_data)
+            validated_data['slug'] = unique_slugify(instance, validated_data['name'])
+        return super().create(validated_data)

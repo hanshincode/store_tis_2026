@@ -16,3 +16,16 @@ class IsStaffSpecialist(permissions.BasePermission):
             # Check logic chuyên môn
             return obj.product.category.specialization_code == request.user.specialization
         return False
+
+
+
+from rest_framework import permissions
+
+# backend/api/permissions.py
+from rest_framework import permissions
+
+class IsTISAdmin(permissions.BasePermission):
+    def has_permission(self, request, view):
+        # Cho phép nếu user đã đăng nhập và có role là admin/super_admin/staff
+        return request.user.is_authenticated and \
+               request.user.role in ['super_admin', 'admin', 'staff']

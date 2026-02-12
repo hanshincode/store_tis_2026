@@ -95,6 +95,7 @@ CORS_ALLOWED_ORIGINS = [
     "https://tisbroker.com",
     "https://www.tisbroker.com",
     "http://localhost:5500", # Cho phép khi test local
+    "http://localhost:8000"
 ]
 
 
@@ -181,4 +182,18 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),     # Token dự phòng sống 1 ngày
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
 }
+
+
+
+
+# backend/insurance_project/settings.py
+
+import os
+
+# Đường dẫn URL để truy cập ảnh (ví dụ: http://127.0.0.1:8000/media/anh.jpg)
+MEDIA_URL = '/media/'
+
+# Thư mục thực tế trên ổ cứng để lưu trữ ảnh
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

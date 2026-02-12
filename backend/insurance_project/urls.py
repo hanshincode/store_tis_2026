@@ -20,3 +20,9 @@ urlpatterns = [
     path('api/', include('api.urls')),
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
 ]
+from django.conf import settings # Thêm dòng này
+from django.conf.urls.static import static # Thêm dòng này
+
+# Thêm dòng này để Django phục vụ file media khi DEBUG = True
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
