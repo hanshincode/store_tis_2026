@@ -1,0 +1,17 @@
+python manage.py makemigrations
+python manage.py migrate
+python manage.py createsuperuser # Tạo Super Admin login Dashboard
+python manage.py runserver
+
+
+
+account supper Admin
+supper_admin
+Zxcvbnm123.
+
+
+
+
+python manage.py makemigrations
+python manage.py migrate
+python manage.py runserver
