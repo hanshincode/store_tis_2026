@@ -1,4 +1,3 @@
-// admin/js/dashboard.js
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const orders = await fetchAPI('/orders/');
@@ -8,7 +7,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         document.getElementById('dashboard-orders').innerHTML = orders.slice(0, 5).map(o => `
             <tr>
-                <td>${o.code}</td>
+                <td>${o.code || o.id}</td>
                 <td class="text-danger fw-bold">${formatMoney(o.total_amount)}</td>
                 <td><span class="badge bg-${o.status==='pending'?'warning':'success'}">${o.status}</span></td>
                 <td>${new Date(o.created_at).toLocaleDateString('vi-VN')}</td>
