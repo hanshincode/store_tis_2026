@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi tiết Sản phẩm - TIS Broker</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/common.css">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        /* CSS riêng biệt cho trang chi tiết */
+        .main-image-wrapper {
+            height: 400px;
+            background: #f8f9fa;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border: 1px solid #eee;
+        }
+        .main-image-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain; /* Contain để không bị cắt xén ảnh chi tiết */
+        }
+        .thumbnail-img {
+            height: 80px;
+            width: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: 0.3s;
+        }
+        .thumbnail-img:hover, .thumbnail-img.active {
+            border-color: var(--primary-color);
+        }
+        .package-option {
+            border: 1px solid #dee2e6;
+            border-radius: 12px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .package-option:hover { border-color: var(--primary-color); background-color: #fff0f1; }
+        .package-option.selected {
+            border-color: var(--primary-color);
+            background-color: #fff0f1;
+            box-shadow: 0 4px 10px rgba(215, 25, 32, 0.1);
+        }
+        .ck-content { line-height: 1.8; color: #444; }
+        .ck-content img { max-width: 100%; height: auto; border-radius: 8px; margin: 15px 0; }
+    </style>
+</head>
+<body class="bg-light">
+
+    <header id="header-placeholder"></header>
+
+    <div class="container" style="margin-top: 100px;">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-4">
+                <li class="breadcrumb-item"><a href="index.html" class="text-decoration-none text-muted"><i class="fas fa-home"></i> Trang chủ</a></li>
+                <li class="breadcrumb-item"><a href="products.html" class="text-decoration-none text-muted">Sản phẩm</a></li>
+                <li class="breadcrumb-item active text-danger fw-bold" aria-current="page" id="breadcrumb-name">Đang tải...</li>
+            </ol>
+        </nav>
+    </div>
+
+    <main class="container pb-5" id="product-detail-container">
+        <div class="text-center py-5">
+            <div class="spinner-border text-danger" style="width: 3rem; height: 3rem;"></div>
+            <p class="text-muted mt-3">Đang tải thông tin chi tiết...</p>
+        </div>
+    </main>
+
+    <footer id="footer-placeholder"></footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="js/common.js"></script>
+    <script src="js/layout.js"></script>
+    <script src="js/product-detail.js"></script> </body>
+</html>
