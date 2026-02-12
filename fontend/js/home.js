@@ -4,10 +4,29 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof AOS !== 'undefined') {
         AOS.init({ duration: 800, once: true });
     }
-
     loadFeaturedProducts();
     loadLatestNews();
 });
+
+// Hàm bổ sung để tránh lỗi undefined
+window.handleQuickBuy = async function(packageId, productId) {
+    if (!getAccessToken()) {
+        Toast.fire({ icon: 'warning', title: 'Vui lòng đăng nhập để mua hàng' });
+        setTimeout(() => window.location.href = 'login.html', 1500);
+        return;
+    }
+    try {
+        await fetchAPI('/cart/add/', 'POST', { 
+            product_id: productId, 
+            package_id: packageId, 
+            quantity: 1 
+        });
+        Toast.fire({ icon: 'success', title: 'Đã thêm vào giỏ hàng' });
+        if (typeof updateCartBadge === 'function') updateCartBadge();
+    } catch (e) {
+        Toast.fire({ icon: 'error', title: 'Không thể thêm vào giỏ hàng' });
+    }
+};
 
 async function loadFeaturedProducts() {
     const container = document.getElementById('product-list');
@@ -15,66 +34,47 @@ async function loadFeaturedProducts() {
 
     try {
         const products = await fetchAPI('/products/');
-        
         if (!products || products.length === 0) {
-            container.innerHTML = '<div class="col-12 text-center py-5 text-muted">Hệ thống đang cập nhật sản phẩm.</div>';
+            container.innerHTML = '<div class="col-12 text-center py-5 text-muted">Chưa có sản phẩm nào.</div>';
             return;
         }
 
         container.innerHTML = products.slice(0, 6).map((p, idx) => {
-            let imageUrl = 'https://placehold.co/400x250/f8f9fa/d71920?text=TIS+Broker';
-            if (p.images && p.images.length > 0 && p.images[0].image) {
-                let imgPath = p.images[0].image;
-                if (imgPath.startsWith('http')) {
-                    imageUrl = imgPath;
-                } else {
-                    if (!imgPath.includes('/media/')) {
-                        imgPath = imgPath.startsWith('/') ? `/media${imgPath}` : `/media/${imgPath}`;
-                    }
-                    imageUrl = DOMAIN + imgPath;
-                }
+            // Tối ưu logic lấy ảnh
+            let imageUrl = 'https://placehold.co/400x250?text=TIS+Broker';
+            if (p.images?.length > 0) {
+                const imgPath = p.images[0].image;
+                imageUrl = imgPath.startsWith('http') ? imgPath : DOMAIN + (imgPath.startsWith('/') ? imgPath : `/${imgPath}`);
             }
 
-            let cleanDesc = p.description ? p.description.replace(/(<([^>]+)>)/gi, "").trim() : 'Gói bảo hiểm toàn diện giúp bạn an tâm bảo vệ tài chính.';
-            let priceDisplay = p.base_price ? formatMoney(p.base_price) : 'Liên hệ';
-            
-            // Lấy ID gói mặc định để mua nhanh
-            let defaultPackageId = (p.packages && p.packages.length > 0) ? p.packages[0].id : null;
+            const cleanDesc = p.description ? p.description.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'An tâm bảo vệ tài chính cùng TIS.';
+            const priceDisplay = formatMoney(p.base_price);
+            const defaultPackageId = p.packages?.[0]?.id || null;
 
             return `
                 <div class="col-lg-4 col-md-6 mb-4" data-aos="fade-up" data-aos-delay="${idx * 100}">
-                    <div class="card product-card-modern h-100 shadow-sm border-0 cursor-pointer" 
-                         onclick="window.location.href='product-detail.html?id=${p.id}'" 
-                         title="Xem chi tiết ${p.name}">
-                        
-                        <div class="product-img-wrapper">
-                            <span class="badge-provider shadow-sm">${p.provider_name || 'TIS'}</span>
-                            <img src="${imageUrl}" alt="${p.name}" onerror="this.onerror=null; this.src='https://placehold.co/400x250/f8f9fa/d71920?text=TIS+Product';">
+                    <div class="card h-100 shadow-sm border-0" onclick="window.location.href='product-detail.html?id=${p.id}'" style="cursor: pointer;">
+                        <div class="position-relative">
+                            <span class="badge bg-danger position-absolute top-0 start-0 m-3">${p.provider_name || 'TIS'}</span>
+                            <img src="${imageUrl}" class="card-img-top" style="height: 200px; object-fit: cover;" alt="${p.name}">
                         </div>
-                        
-                        <div class="card-body p-4 d-flex flex-column">
-                            <h5 class="fw-bold text-dark mb-2 product-title">${p.name}</h5>
-                            <p class="text-muted small flex-grow-1 product-desc">${cleanDesc}</p>
-                            
-                            <div class="d-flex justify-content-between align-items-end mt-3 pt-3 border-top">
-                                <div class="price-block">
-                                    <span class="d-block text-muted mb-1" style="font-size: 0.75rem;">Phí từ</span>
-                                    <span class="text-danger fw-bolder h5 mb-0">${priceDisplay}</span>
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="fw-bold">${p.name}</h5>
+                            <p class="text-muted small flex-grow-1">${cleanDesc}</p>
+                            <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
+                                <div>
+                                    <small class="text-muted d-block">Phí từ</small>
+                                    <span class="text-danger fw-bold h5">${priceDisplay}</span>
                                 </div>
-                                
                                 <button onclick="event.stopPropagation(); handleQuickBuy(${defaultPackageId}, ${p.id})" 
-                                        class="btn btn-danger btn-sm rounded-pill px-4 py-2 fw-bold shadow-sm btn-buy">
-                                    Mua ngay
-                                </button>
+                                        class="btn btn-danger btn-sm rounded-pill px-3">Mua ngay</button>
                             </div>
                         </div>
                     </div>
-                </div>
-            `;
+                </div>`;
         }).join('');
-    } catch (e) { 
-        console.error("Lỗi tải sản phẩm:", e);
-        container.innerHTML = '<div class="col-12 text-center py-5 text-danger fw-bold">Không thể kết nối tải dữ liệu sản phẩm.</div>'; 
+    } catch (e) {
+        container.innerHTML = '<div class="col-12 text-center py-5 text-danger">Lỗi kết nối máy chủ.</div>';
     }
 }
 

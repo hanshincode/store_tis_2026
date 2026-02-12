@@ -1,20 +1,31 @@
-document.addEventListener('DOMContentLoaded', loadConsultations);
+// admin/js/consultations.js
+document.addEventListener('DOMContentLoaded', () => loadConsultations());
 
 async function loadConsultations() {
-    const tbody = document.getElementById('consultation-list');
-    tbody.innerHTML = '<tr><td colspan="5" class="text-center">Đang tải...</td></tr>';
+    const tbody = document.getElementById('consultations-list');
+    if(!tbody) return;
+    
     try {
-        const list = await fetchAPI('/consultations/');
-        if (!list.length) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Không có yêu cầu nào</td></tr>'; return; }
-        
-        tbody.innerHTML = list.map(c => `
+        const data = await fetchAPI('/consultations/');
+        tbody.innerHTML = data.map(item => `
             <tr>
-                <td class="fw-bold">${c.customer_name || 'Khách vãng lai'}</td>
-                <td>${c.customer_contact || '---'}</td>
-                <td>${c.product || 'Tư vấn chung'}</td>
-                <td><span class="badge bg-${c.status === 'new' ? 'danger' : 'success'}">${c.status === 'new' ? 'Mới' : 'Đã xử lý'}</span></td>
-                <td>${new Date(c.created_at).toLocaleDateString('vi-VN')}</td>
+                <td>${new Date(item.created_at).toLocaleDateString('vi-VN')}</td>
+                <td class="fw-bold">${item.customer_name}</td>
+                <td><span class="badge bg-light text-dark border">${item.customer_contact}</span></td>
+                <td>${item.product_name || 'Sản phẩm không rõ'}</td>
+                <td><span class="badge bg-${item.status === 'new' ? 'warning' : 'success'}">${item.status === 'new' ? 'Mới' : 'Đã xử lý'}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-danger" onclick="handleTicket(${item.id})">Xử lý</button>
+                </td>
             </tr>
         `).join('');
-    } catch (e) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Lỗi kết nối</td></tr>'; }
+    } catch (e) { console.error("Lỗi tải ticket:", e); }
+}
+
+async function handleTicket(id) {
+    if(!confirm("Đánh dấu ticket này là đã tư vấn xong?")) return;
+    try {
+        await fetchAPI(`/consultations/${id}/`, 'PATCH', { status: 'processed' });
+        loadConsultations();
+    } catch (e) { alert("Lỗi cập nhật trạng thái"); }
 }

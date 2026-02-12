@@ -1,36 +1,40 @@
 // js/layout.js
+// js/layout.js - Cập nhật xử lý đường dẫn
 document.addEventListener('DOMContentLoaded', async () => {
-    // Tự động nhận diện xem có đang ở trong thư mục con (user, admin...) không
     const isInSubFolder = window.location.pathname.includes('/user/') || window.location.pathname.includes('/admin/');
     const basePath = isInSubFolder ? '../' : '';
 
-    // 1. Nhúng Header
-    const headerElement = document.getElementById('header-placeholder');
-    if (headerElement) {
+    async function loadComponent(id, file) {
+        const el = document.getElementById(id);
+        if (!el) return;
         try {
-            const response = await fetch(`${basePath}components/header.html`);
-            headerElement.innerHTML = await response.text();
-            
-            initHeaderLogic();
-            initAuthDisplay();
-            updateCartBadge();
-            if (typeof initRealtimeSearch === 'function') initRealtimeSearch(); 
-
-            // FIX ĐƯỜNG DẪN LOGO & LINK TRONG HEADER NẾU Ở THƯ MỤC CON
-            if (isInSubFolder) fixHeaderLinks(basePath);
-
-        } catch (error) { console.error("Lỗi khi tải Header:", error); }
+            const res = await fetch(basePath + file);
+            el.innerHTML = await res.text();
+            if (id === 'header-placeholder') {
+                initHeaderLogic();
+                initAuthDisplay();
+                updateCartBadge();
+                if (typeof initRealtimeSearch === 'function') initRealtimeSearch();
+                fixLinks(el, basePath);
+            } else {
+                fixLinks(el, basePath);
+            }
+        } catch (err) { console.error(`Error loading ${file}:`, err); }
     }
 
-    // 2. Nhúng Footer
-    const footerElement = document.getElementById('footer-placeholder');
-    if (footerElement) {
-        try {
-            const response = await fetch(`${basePath}components/footer.html`);
-            footerElement.innerHTML = await response.text();
-            if (isInSubFolder) fixFooterLinks(basePath);
-        } catch (error) { console.error("Lỗi khi tải Footer:", error); }
+    function fixLinks(container, path) {
+        if (!path) return;
+        container.querySelectorAll('a, img').forEach(item => {
+            const attr = item.tagName === 'A' ? 'href' : 'src';
+            const val = item.getAttribute(attr);
+            if (val && !val.startsWith('http') && !val.startsWith('#') && !val.startsWith('javascript')) {
+                item.setAttribute(attr, path + val);
+            }
+        });
     }
+
+    await loadComponent('header-placeholder', 'components/header.html');
+    await loadComponent('footer-placeholder', 'components/footer.html');
 });
 
 

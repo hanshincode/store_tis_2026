@@ -2,119 +2,110 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản lý Sản phẩm - TIS Admin</title>
-    
+    <title>Tiêu đề trang - TIS Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../css/common.css">
-    <style>
-        /* Giữ nguyên Style của bạn */
-        .admin-sidebar { min-height: 100vh; background: #212529; width: 250px; }
-        .product-img-td { width: 60px; height: 45px; object-fit: cover; border-radius: 4px; }
-        .ck-editor__editable { min-height: 400px !important; }
-    </style>
+    <link rel="stylesheet" href="css/layout.css">
 </head>
-<body class="bg-light">
+<body>
+    <div class="main-content">
+        <div class="content-body">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h4 class="fw-bold m-0 text-dark">Kho sản phẩm</h4>
+                    <small class="text-muted">Quản lý các gói bảo hiểm đang kinh doanh</small>
+                </div>
+                <button class="btn btn-danger rounded-pill fw-bold px-4 shadow-sm" onclick="openProductModal()">
+                    <i class="fas fa-plus-circle me-2"></i> Thêm sản phẩm
+                </button>
+            </div>
 
-<div class="d-flex">
-    <div class="admin-sidebar p-3 text-white">
-        <h4 class="fw-bold text-danger text-center">TIS ADMIN</h4>
-        <hr>
-        <ul class="nav nav-pills flex-column mb-auto">
-            <li class="nav-item"><a href="index.html" class="nav-link text-white"><i class="fas fa-home me-2"></i>Dashboard</a></li>
-            <li><a href="products.html" class="nav-link active bg-danger"><i class="fas fa-box me-2"></i>Sản phẩm</a></li>
-            <li><a href="categories.html" class="nav-link text-white"><i class="fas fa-tags me-2"></i>Danh mục</a></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><a href="javascript:void(0)" onclick="logout()" class="nav-link text-white"><i class="fas fa-sign-out-alt me-2"></i>Đăng xuất</a></li>
-        </ul>
-    </div>
-
-    <div class="flex-grow-1 p-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2 class="fw-bold">Quản lý Sản phẩm</h2>
-            <button class="btn btn-danger fw-bold" onclick="openModal()">
-                <i class="fas fa-plus-circle me-1"></i> Thêm sản phẩm
-            </button>
-        </div>
-
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-0">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th class="ps-3">ID</th>
-                            <th>Ảnh</th>
+                            <th class="ps-4">Ảnh</th>
                             <th>Tên sản phẩm</th>
                             <th>Danh mục</th>
-                            <th>Giá gốc</th>
-                            <th class="text-end pe-3">Thao tác</th>
+                            <th>Đối tượng</th>
+                            <th>Giá phí</th>
+                            <th class="text-end pe-4">Thao tác</th>
                         </tr>
                     </thead>
-                    <tbody id="product-table-body"></tbody>
+                    <tbody id="products-list"></tbody>
                 </table>
             </div>
         </div>
     </div>
-</div>
 
-<div class="modal fade" id="productModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title fw-bold" id="modalTitle">Sản phẩm</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="productForm">
-                    <input type="hidden" id="prod-id">
-                    <div class="row g-3">
-                        <div class="col-md-8">
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Tên sản phẩm</label>
-                                <input type="text" id="prod-name" class="form-control" required>
+    <div class="modal fade" id="productModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content border-0 shadow rounded-4">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title fw-bold">Chi tiết sản phẩm</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="product-form">
+                        <div class="row g-4">
+                            <div class="col-md-8">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Tên sản phẩm *</label>
+                                    <input type="text" id="p-name" class="form-control form-control-lg" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Nội dung quyền lợi (Bài viết)</label>
+                                    <div id="p-desc"></div> </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Nội dung chi tiết (Bài viết)</label>
-                                <textarea id="prod-content"></textarea>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Nhà cung cấp</label>
+                                    <input type="text" id="p-provider" class="form-control">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Danh mục</label>
+                                    <select id="p-category" class="form-select"></select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Đối tượng</label>
+                                    <select id="p-target" class="form-select">
+                                        <option value="ind">Cá nhân</option>
+                                        <option value="ent">Doanh nghiệp</option>
+                                    </select>
+                                </div>
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" id="p-hidden-price">
+                                    <label class="form-check-label fw-bold">Hiển thị "Giá liên hệ"</label>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Phí bảo hiểm (VNĐ)</label>
+                                    <input type="text" id="p-price" class="form-control" placeholder="0">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Hình ảnh sản phẩm</label>
+                                    <input type="file" id="p-images" class="form-control" multiple accept="image/*">
+                                    <div id="preview-container" class="d-flex flex-wrap gap-2 mt-2"></div>
+                                </div>
                             </div>
                         </div>
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Danh mục</label>
-                                <select id="prod-category" class="form-select" required></select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Giá gốc (VNĐ)</label>
-                                <input type="number" id="prod-price" class="form-control" value="0">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Mô tả ngắn</label>
-                                <textarea id="prod-desc" class="form-control" rows="3"></textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Ảnh đại diện</label>
-                                <input type="file" id="prod-image" class="form-control" accept="image/*" onchange="previewImage(this)">
-                                <img id="img-preview" src="" class="img-fluid mt-2 border rounded d-none">
-                            </div>
-                        </div>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-                <button type="button" class="btn btn-danger px-4" onclick="handleSave()">Lưu dữ liệu</button>
+                    </form>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Hủy</button>
+                    <button id="btn-submit-product" onclick="submitProduct()" class="btn btn-danger rounded-pill px-5 fw-bold">
+                        Lưu sản phẩm
+                    </button>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script src="https://cdn.ckeditor.com/4.22.1/full-all/ckeditor.js"></script>
+    <script src="https://cdn.ckeditor.com/ckeditor5/39.0.1/classic/ckeditor.js"></script>
 
-<script src="../js/common.js"></script>
-<script src="js/admin-products.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="../js/common.js"></script>
+    <script src="js/core.js"></script> <script src="js/products.js"></script>
 </body>
 </html>

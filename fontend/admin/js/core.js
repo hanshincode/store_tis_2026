@@ -1,64 +1,59 @@
+// admin/js/core.js
 document.addEventListener('DOMContentLoaded', async () => {
-    if (!getAccessToken()) { window.location.href = '/login.html'; return; }
+    // 1. Kiểm tra đăng nhập
+    if (!getAccessToken()) { window.location.href = '../login.html'; return; }
     
+    // 2. Tự động vẽ Sidebar & Topbar
     renderLayout();
-    activeCurrentMenu();
+    markActiveMenu();
 
+    // 3. Kiểm tra quyền Admin/Staff
     try {
         const user = await fetchAPI('/users/me/');
-        if (!['admin', 'super_admin', 'staff'].includes(user.role) && !user.is_superuser) {
-            alert("Bạn không có quyền truy cập!"); window.location.href = '/user/index.html'; return;
+        const role = user.role;
+        if (!['admin', 'super_admin', 'staff'].includes(role) && !user.is_superuser) {
+            alert("Truy cập bị từ chối!"); window.location.href = '../index.html'; return;
         }
-        document.getElementById('admin-name').innerText = user.first_name || user.username;
-        document.getElementById('admin-role').innerText = user.role.toUpperCase();
+        
+        document.getElementById('admin-profile-name').innerText = user.first_name || user.username;
+        document.getElementById('admin-profile-role').innerText = role.toUpperCase();
     } catch (e) { window.logout(); }
-
-    // Gắn sự kiện Đăng xuất (Không dùng onclick HTML)
-    document.getElementById('btn-logout-sidebar')?.addEventListener('click', window.logout);
-    document.getElementById('btn-logout-topbar')?.addEventListener('click', window.logout);
 });
 
 function renderLayout() {
-    const sidebar = `
-    <div class="sidebar" id="sidebar">
+    const sidebarHTML = `
+    <div class="sidebar">
         <div class="sidebar-header"><h4 class="fw-bold m-0 text-white">TIS ADMIN</h4></div>
-        <div class="sidebar-menu mt-2">
-            <a href="index.html" id="menu-index"><i class="fas fa-tachometer-alt"></i> Tổng quan</a>
-            <a href="orders.html" id="menu-orders"><i class="fas fa-file-invoice-dollar"></i> Đơn hàng</a>
-            <a href="products.html" id="menu-products"><i class="fas fa-box-open"></i> Sản phẩm</a>
-            <a href="categories.html" id="menu-categories"><i class="fas fa-tags"></i> Danh mục</a>
-            <a href="news.html" id="menu-news"><i class="fas fa-newspaper"></i> Tin tức</a>
-            <a href="staff.html" id="menu-staff"><i class="fas fa-users-cog"></i> Nhân sự</a>
+        <div class="sidebar-menu">
+            <a href="index.html" id="m-index"><i class="fas fa-chart-line"></i> Tổng quan</a>
+            <a href="orders.html" id="m-orders"><i class="fas fa-shopping-cart"></i> Đơn hàng</a>
+            <a href="products.html" id="m-products"><i class="fas fa-box"></i> Sản phẩm</a>
+            <a href="categories.html" id="m-categories"><i class="fas fa-list"></i> Danh mục</a>
+            <a href="consultations.html" id="m-consultations"><i class="fas fa-headset"></i> Tư vấn (Tickets)</a>
+            <a href="news.html" id="m-news"><i class="fas fa-newspaper"></i> Tin tức</a>
+            <a href="staff.html" id="m-staff"><i class="fas fa-user-shield"></i> Nhân sự</a>
         </div>
-        <div class="p-3 position-absolute bottom-0 w-100 bg-dark">
-            <button id="btn-logout-sidebar" class="btn btn-outline-danger w-100 btn-sm"><i class="fas fa-sign-out-alt"></i> Đăng xuất</button>
-        </div>
+        <div class="p-3 position-absolute bottom-0 w-100"><button class="btn btn-outline-danger w-100" onclick="window.logout()">Đăng xuất</button></div>
     </div>`;
 
-    const topbar = `
-    <div class="top-bar">
-        <h5 class="m-0 fw-bold text-secondary text-uppercase">Hệ thống quản trị</h5>
-        <div class="dropdown">
-            <div class="d-flex align-items-center cursor-pointer" data-bs-toggle="dropdown">
-                <div class="text-end me-2 d-none d-md-block">
-                    <div class="fw-bold text-dark" id="admin-name">Loading...</div>
-                    <small class="text-success" id="admin-role">...</small>
-                </div>
-                <div class="bg-light rounded-circle p-2"><i class="fas fa-user-circle fa-2x text-primary"></i></div>
+    const topbarHTML = `
+    <div class="top-bar shadow-sm">
+        <h5 class="m-0 fw-bold text-dark">HỆ THỐNG QUẢN TRỊ V1.0</h5>
+        <div class="d-flex align-items-center">
+            <div class="text-end me-3">
+                <div class="fw-bold text-dark" id="admin-profile-name">...</div>
+                <small class="text-danger fw-bold" id="admin-profile-role" style="font-size:10px"></small>
             </div>
-            <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
-                <li><a class="dropdown-item py-2" href="profile.html"><i class="fas fa-user-cog me-2"></i> Hồ sơ</a></li>
-                <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item py-2 text-danger cursor-pointer" id="btn-logout-topbar"><i class="fas fa-sign-out-alt me-2"></i> Đăng xuất</a></li>
-            </ul>
+            <div class="bg-light rounded-circle p-2 border"><i class="fas fa-user-shield text-danger"></i></div>
         </div>
     </div>`;
 
-    document.body.insertAdjacentHTML('afterbegin', sidebar);
-    document.querySelector('.main-content')?.insertAdjacentHTML('afterbegin', topbar);
+    document.body.insertAdjacentHTML('afterbegin', sidebarHTML);
+    document.querySelector('.main-content').insertAdjacentHTML('afterbegin', topbarHTML);
 }
 
-function activeCurrentMenu() {
+function markActiveMenu() {
     const page = window.location.pathname.split("/").pop() || 'index.html';
-    document.getElementById('menu-' + page.replace('.html', ''))?.classList.add('active');
+    const id = 'm-' + page.replace('.html', '');
+    document.getElementById(id)?.classList.add('active');
 }

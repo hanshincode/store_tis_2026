@@ -1,85 +1,173 @@
-// js/products.js
+/**
+ * admin/js/products.js
+ * Xử lý: 2 trường mô tả, định dạng tiền tệ, và tự động Refresh Token.
+ */
+
 let descEditor;
+let editingProductId = null;
+
+// --- 1. CKEDITOR CONFIG ---
 class Base64UploadAdapter {
     constructor(loader) { this.loader = loader; }
-    upload() { return this.loader.file.then(file => new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve({ default: r.result }); r.readAsDataURL(file); })); }
+    upload() {
+        return this.loader.file.then(file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve({ default: reader.result });
+            reader.onerror = err => reject(err);
+            reader.readAsDataURL(file);
+        }));
+    }
     abort() {}
 }
-function Base64Plugin(editor) { editor.plugins.get('FileRepository').createUploadAdapter = (loader) => new Base64UploadAdapter(loader); }
 
+function MyCustomUploadAdapterPlugin(editor) {
+    editor.plugins.get('FileRepository').createUploadAdapter = (loader) => new Base64UploadAdapter(loader);
+}
+
+// --- 2. KHỞI TẠO ---
 document.addEventListener('DOMContentLoaded', () => {
-    if (document.querySelector('#p-desc')) {
-        ClassicEditor.create(document.querySelector('#p-desc'), { extraPlugins: [Base64Plugin] }).then(editor => { descEditor = editor; });
+    // Khởi tạo CKEditor cho Chi tiết quyền lợi
+    const editorEl = document.querySelector('#p-desc');
+    if (editorEl) {
+        ClassicEditor.create(editorEl, {
+            extraPlugins: [MyCustomUploadAdapterPlugin],
+            toolbar: ['heading', '|', 'bold', 'italic', 'link', 'bulletedList', 'numberedList', 'uploadImage', 'insertTable', 'undo', 'redo']
+        }).then(editor => { descEditor = editor; }).catch(err => console.error(err));
     }
-    document.getElementById('btn-open-add-modal')?.addEventListener('click', openAddModal);
-    document.getElementById('btn-submit-product')?.addEventListener('click', submitProduct);
-    document.getElementById('p-hidden-price')?.addEventListener('change', function() {
-        document.getElementById('p-price').disabled = this.checked; if(this.checked) document.getElementById('p-price').value = '';
-    });
-    document.getElementById('p-images')?.addEventListener('change', function(e) {
-        const preview = document.getElementById('preview-container'); preview.innerHTML = '';
-        Array.from(this.files).forEach(file => {
-            const reader = new FileReader(); reader.onload = (ev) => { const img = document.createElement('img'); img.src = ev.target.result; preview.appendChild(img); }; reader.readAsDataURL(file);
+
+    // Tự động định dạng dấu chấm khi nhập giá
+    const priceInput = document.getElementById('p-price');
+    if (priceInput) {
+        priceInput.addEventListener('input', function(e) {
+            let val = e.target.value.replace(/\D/g, ""); 
+            if (val) e.target.value = val.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
         });
+    }
+
+    // Toggle bật/tắt ô nhập giá khi chọn "Giá liên hệ"
+    document.getElementById('p-hidden-price')?.addEventListener('change', function() {
+        priceInput.disabled = this.checked;
+        if (this.checked) priceInput.value = "";
     });
+
     loadProducts();
 });
 
-async function fetchCategoriesForDropdown() {
-    const select = document.getElementById('p-category');
-    try {
-        const cats = await fetchAPI('/categories/');
-        select.innerHTML = '<option value="">-- Chọn danh mục --</option>' + cats.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-    } catch(e) { select.innerHTML = '<option value="">Lỗi tải danh mục</option>'; }
-}
+// --- 3. LOGIC XỬ LÝ DỮ LIỆU ---
 
-function openAddModal() {
-    document.getElementById('product-form').reset();
-    document.getElementById('p-price').disabled = false;
+window.loadProducts = async function() {
+    const tbody = document.getElementById('products-list');
+    if (!tbody) return;
+    try {
+        const products = await fetchAPI('/products/'); // Sử dụng fetchAPI từ common.js
+        tbody.innerHTML = products.map(p => {
+            const img = p.images?.[0]?.image ? (p.images[0].image.startsWith('http') ? p.images[0].image : DOMAIN + p.images[0].image) : 'https://placehold.co/50';
+            return `
+                <tr>
+                    <td class="ps-4"><img src="${img}" class="rounded border" width="50" height="40" style="object-fit:cover"></td>
+                    <td class="fw-bold cursor-pointer" onclick="openProductModal(${p.id})">${p.name}</td>
+                    <td><span class="badge bg-light text-dark border">${p.category_name || 'N/A'}</span></td>
+                    <td>${p.target_audience === 'ent' ? 'Doanh nghiệp' : 'Cá nhân'}</td>
+                    <td class="text-danger fw-bold">${p.is_price_hidden ? 'Liên hệ' : formatMoney(p.base_price)}</td>
+                    <td class="text-end pe-4">
+                        <button class="btn btn-sm btn-outline-danger border-0" onclick="deleteProduct(${p.id})"><i class="fas fa-trash-alt"></i></button>
+                    </td>
+                </tr>`;
+        }).join('');
+    } catch (e) { tbody.innerHTML = '<tr><td colspan="6" class="text-center">Lỗi tải danh sách</td></tr>'; }
+};
+
+window.openProductModal = async function(id = null) {
+    editingProductId = id;
+    const form = document.getElementById('product-form');
+    form.reset();
+    if (descEditor) descEditor.setData('');
     document.getElementById('preview-container').innerHTML = '';
-    if(descEditor) descEditor.setData('');
-    fetchCategoriesForDropdown();
+    
+    await fetchCategoriesForDropdown();
+
+    if (id) {
+        document.querySelector('#productModal .modal-title').innerText = "Chỉnh sửa sản phẩm";
+        try {
+            const p = await fetchAPI(`/products/${id}/`);
+            document.getElementById('p-name').value = p.name;
+            document.getElementById('p-short-desc').value = p.short_description || ''; // Detail Base
+            document.getElementById('p-provider').value = p.provider_name;
+            document.getElementById('p-category').value = p.category;
+            document.getElementById('p-target').value = p.target_audience;
+            document.getElementById('p-hidden-price').checked = p.is_price_hidden;
+            document.getElementById('p-price').disabled = p.is_price_hidden;
+
+            // Định dạng giá có dấu chấm khi đổ lên Modal
+            if (p.base_price) {
+                document.getElementById('p-price').value = p.base_price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+            }
+            if (descEditor) descEditor.setData(p.description || ''); // Detail Final
+        } catch (e) { Toast.fire({ icon: 'error', title: 'Lỗi tải chi tiết' }); }
+    } else {
+        document.querySelector('#productModal .modal-title').innerText = "Thêm sản phẩm mới";
+    }
     new bootstrap.Modal(document.getElementById('productModal')).show();
-}
+};
 
-async function loadProducts() {
-    const tbody = document.getElementById('products-list'); tbody.innerHTML = '<tr><td colspan="6">Đang tải...</td></tr>';
-    try {
-        const pds = await fetchAPI('/products/');
-        tbody.innerHTML = pds.map(p => `<tr>
-            <td><img src="${p.images?.[0]?.image ? MEDIA_URL + p.images[0].image : ''}"> ${p.images?.length > 1 ? `<span class="badge bg-secondary">+${p.images.length-1}</span>` : ''}</td>
-            <td class="fw-bold">${p.name}</td><td>${p.provider_name}</td>
-            <td><span class="badge bg-${p.target_audience === 'ent' ? 'primary' : 'info'}">${p.target_audience === 'ent' ? 'Doanh nghiệp' : 'Cá nhân'}</span></td>
-            <td class="text-danger fw-bold">${p.is_price_hidden ? 'Liên hệ' : (p.packages?.[0] ? formatMoney(p.packages[0].price) : 'Chưa set')}</td>
-            <td><button class="btn btn-sm btn-danger" onclick="window.deleteProduct(${p.id})"><i class="fas fa-trash"></i></button></td>
-        </tr>`).join('');
-    } catch (e) { tbody.innerHTML = '<tr><td colspan="6">Lỗi kết nối</td></tr>'; }
-}
+window.submitProduct = async function() {
+    const btn = document.getElementById('btn-submit-product');
+    const name = document.getElementById('p-name').value.trim();
+    if (!name) return Toast.fire({ icon: 'warning', title: 'Vui lòng nhập tên!' });
 
-async function submitProduct() {
     const fd = new FormData();
-    fd.append('name', document.getElementById('p-name').value);
-    fd.append('provider_name', document.getElementById('p-provider').value);
+    fd.append('name', name);
+    fd.append('short_description', document.getElementById('p-short-desc').value); // Gửi mô tả ngắn
+    fd.append('provider_name', document.getElementById('p-provider').value || "TIS Broker");
     fd.append('category', document.getElementById('p-category').value);
     fd.append('target_audience', document.getElementById('p-target').value);
     
     const isHidden = document.getElementById('p-hidden-price').checked;
     fd.append('is_price_hidden', isHidden ? 'True' : 'False');
-    if(descEditor) fd.append('description', descEditor.getData());
-    
+
+    // Làm sạch dấu chấm trước khi gửi về Backend
+    const rawPrice = document.getElementById('p-price').value.replace(/\./g, "");
+    if (!isHidden && rawPrice) fd.append('base_price', rawPrice);
+
+    if (descEditor) fd.append('description', descEditor.getData());
+
     const files = document.getElementById('p-images').files;
     for (let i = 0; i < files.length; i++) fd.append('uploaded_images', files[i]);
 
     try {
-        const res = await fetch(`${API_BASE_URL}/products/`, { method: 'POST', headers: { 'Authorization': `Bearer ${getAccessToken()}` }, body: fd });
-        if(!res.ok) throw await res.json();
-        const newProd = await res.json();
+        btn.disabled = true;
+        btn.innerText = "ĐANG LƯU...";
+        const url = editingProductId ? `/products/${editingProductId}/` : `/products/`;
+        const method = editingProductId ? 'PATCH' : 'POST';
 
-        if(!isHidden && document.getElementById('p-price').value) {
-            await fetchAPI('/product-packages/', 'POST', { product: newProd.id, duration_label: '1 Năm', duration_days: 365, price: document.getElementById('p-price').value });
-        }
-        Toast.fire({ icon: 'success', title: 'Thêm thành công' });
-        bootstrap.Modal.getInstance(document.getElementById('productModal')).hide(); loadProducts();
-    } catch(e) { Toast.fire({ icon: 'error', title: 'Lỗi thêm sản phẩm' }); }
+        await fetchAPI(url, method, fd); // Tự động xử lý Bearer Token
+
+        Toast.fire({ icon: 'success', title: 'Lưu sản phẩm thành công!' });
+        bootstrap.Modal.getInstance(document.getElementById('productModal')).hide();
+        loadProducts();
+    } catch (e) {
+        const msg = typeof e === 'object' ? (e.detail || Object.values(e).flat().join('\n')) : "Lỗi hệ thống";
+        Swal.fire('Thất bại', msg, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "Lưu sản phẩm";
+    }
+};
+
+async function fetchCategoriesForDropdown() {
+    const select = document.getElementById('p-category');
+    try {
+        const cats = await fetchAPI('/categories/');
+        select.innerHTML = cats.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    } catch (e) { console.error("Lỗi danh mục"); }
 }
-window.deleteProduct = async function(id) { if(!confirm('Xóa?')) return; await fetchAPI(`/products/${id}/`, 'DELETE'); loadProducts(); };
+
+window.deleteProduct = async function(id) {
+    const res = await Swal.fire({ title: 'Xác nhận xóa?', icon: 'warning', showCancelButton: true });
+    if (!res.isConfirmed) return;
+    try {
+        await fetchAPI(`/products/${id}/`, 'DELETE');
+        loadProducts();
+        Toast.fire({ icon: 'success', title: 'Đã xóa' });
+    } catch (e) { Toast.fire({ icon: 'error', title: 'Lỗi khi xóa' }); }
+};
