@@ -1,48 +1,75 @@
 /* admin/css/layout.css */
-:root {
-    --admin-sidebar-width: 260px;
-    --admin-topbar-height: 70px;
+body {
+    background-color: #f5f7fb; /* Màu nền xám nhẹ hiện đại */
+    font-family: 'Segoe UI', Roboto, sans-serif;
+    display: flex;
+    min-height: 100vh;
 }
 
-body { background-color: #f4f6f9; display: flex; min-height: 100vh; font-family: 'Be Vietnam Pro', sans-serif; }
-
-/* Sidebar */
-.sidebar {
-    width: var(--admin-sidebar-width);
-    background: #1a1a1a;
-    color: white;
-    position: fixed;
+/* --- SIDEBAR --- */
+.sidebar-wrapper {
+    width: 260px;
     height: 100vh;
-    z-index: 1001;
-    transition: all 0.3s;
-}
-.sidebar-header { padding: 20px; border-bottom: 1px solid #333; text-align: center; }
-.sidebar-menu { padding: 10px 0; }
-.sidebar-menu a {
-    display: block; padding: 12px 25px; color: #adb5bd;
-    text-decoration: none; transition: 0.2s; border-left: 4px solid transparent;
-}
-.sidebar-menu a i { width: 25px; font-size: 1.1rem; }
-.sidebar-menu a:hover, .sidebar-menu a.active {
-    background: rgba(215, 25, 32, 0.1); color: var(--primary-color);
-    border-left-color: var(--primary-color);
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    transition: all 0.3s ease;
 }
 
-/* Content Area */
+.sidebar-menu .nav-link {
+    color: #64748b;
+    padding: 12px 15px;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.sidebar-menu .nav-link:hover {
+    background-color: #f1f5f9;
+    color: #d71920; /* Đỏ TIS */
+}
+
+.sidebar-menu .nav-link.active {
+    background-color: #fef2f2; /* Hồng nhạt */
+    color: #d71920;
+    font-weight: 700;
+}
+
+.sidebar-menu .nav-link i {
+    width: 20px;
+    text-align: center;
+}
+
+/* --- MAIN CONTENT --- */
 .main-content {
-    flex: 1; margin-left: var(--admin-sidebar-width);
-    min-height: 100vh; display: flex; flex-direction: column;
+    margin-left: 260px; /* Chừa chỗ cho sidebar */
+    padding: 30px;
+    width: calc(100% - 260px);
+    transition: all 0.3s ease;
 }
-.top-bar {
-    height: var(--admin-topbar-height); background: white;
-    padding: 0 30px; display: flex; align-items: center;
-    justify-content: space-between; position: sticky; top: 0; z-index: 1000;
-}
-.content-body { padding: 30px; }
 
-/* Thẻ thống kê (Dashboard Cards) */
-.stat-card {
-    background: white; border-radius: 15px; padding: 25px;
-    border: none; box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-    border-left: 5px solid var(--primary-color);
+/* --- RESPONSIVE MOBILE --- */
+@media (max-width: 768px) {
+    .sidebar-wrapper {
+        transform: translateX(-100%); /* Ẩn sidebar */
+    }
+    
+    .sidebar-wrapper.show {
+        transform: translateX(0); /* Hiện khi toggle */
+        box-shadow: 0 0 50px rgba(0,0,0,0.5);
+    }
+
+    .main-content {
+        margin-left: 0;
+        width: 100%;
+        padding: 15px;
+    }
 }

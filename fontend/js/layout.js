@@ -1,228 +1,236 @@
-// js/layout.js
-// js/layout.js - Cập nhật xử lý đường dẫn
-document.addEventListener('DOMContentLoaded', async () => {
-    const isInSubFolder = window.location.pathname.includes('/user/') || window.location.pathname.includes('/admin/');
-    const basePath = isInSubFolder ? '../' : '';
+/**
+ * js/layout.js
+ * Chức năng: Quản lý Header, Footer, Auth state, Mega Menu và Giỏ hàng
+ */
 
-    async function loadComponent(id, file) {
-        const el = document.getElementById(id);
-        if (!el) return;
-        try {
-            const res = await fetch(basePath + file);
-            el.innerHTML = await res.text();
-            if (id === 'header-placeholder') {
-                initHeaderLogic();
-                initAuthDisplay();
-                updateCartBadge();
-                if (typeof initRealtimeSearch === 'function') initRealtimeSearch();
-                fixLinks(el, basePath);
-            } else {
-                fixLinks(el, basePath);
-            }
-        } catch (err) { console.error(`Error loading ${file}:`, err); }
-    }
-
-    function fixLinks(container, path) {
-        if (!path) return;
-        container.querySelectorAll('a, img').forEach(item => {
-            const attr = item.tagName === 'A' ? 'href' : 'src';
-            const val = item.getAttribute(attr);
-            if (val && !val.startsWith('http') && !val.startsWith('#') && !val.startsWith('javascript')) {
-                item.setAttribute(attr, path + val);
-            }
-        });
-    }
-
-    await loadComponent('header-placeholder', 'components/header.html');
-    await loadComponent('footer-placeholder', 'components/footer.html');
+document.addEventListener("DOMContentLoaded", () => {
+    loadHeader();
+    loadFooter();
 });
 
+let chatWidgetScriptPromise = null;
 
-// Hàm tự động sửa đường dẫn hình ảnh và link khi ở thư mục con
-// Thay thế hàm này trong js/layout.js
-function fixHeaderLinks(basePath) {
-    const navLogo = document.getElementById('nav-logo');
-    if (navLogo) navLogo.src = `${basePath}images/logo.png`;
-    
-    // Gom tất cả các thẻ <a> trên Header cần được tự động căn chỉnh đường dẫn
-    const headerLinks = document.querySelectorAll('#mainNavbar a.nav-link, .navbar-brand, .nav-cart-btn, #nav-auth a, .dropdown-item');
-    
-    headerLinks.forEach(link => {
-        let href = link.getAttribute('href');
-        // Bỏ qua các link trống, link nhảy (#) hoặc link chức năng (javascript:)
-        if (href && !href.startsWith('http') && !href.startsWith('#') && !href.startsWith('javascript')) {
-            link.setAttribute('href', basePath + href);
-        }
-    });
-}
+// --- 1. LOAD HEADER ---
+async function loadHeader() {
+    const placeholder = document.getElementById('header-placeholder');
+    if (!placeholder) return;
 
-function fixFooterLinks(basePath) {
-    document.querySelectorAll('footer img').forEach(img => {
-        let src = img.getAttribute('src');
-        if (src && !src.startsWith('http')) img.setAttribute('src', basePath + src);
-    });
-}
-
-
-
-// Xử lý hiệu ứng cuộn Navbar
-// Thay thế hàm này trong js/layout.js
-function initHeaderLogic() {
-    const nav = document.getElementById('mainNavbar');
-    
-    // Kiểm tra xem có đang ở trang chủ không
-    const isHomePage = window.location.pathname.endsWith('index.html') || 
-                       window.location.pathname === '/' || 
-                       window.location.pathname.endsWith('/');
-
-    // Nếu KHÔNG PHẢI trang chủ -> Bật nền trắng cho Navbar ngay lập tức
-    if (!isHomePage) {
-        nav.classList.add('navbar-scrolled', 'shadow-sm');
-        nav.classList.remove('shadow-none');
-    }
-
-    // Xử lý hiệu ứng khi cuộn chuột
-    window.addEventListener('scroll', () => {
-        if (window.scrollY > 50 || !isHomePage) {
-            nav.classList.add('navbar-scrolled', 'shadow-sm');
-            nav.classList.remove('shadow-none');
-        } else {
-            nav.classList.remove('navbar-scrolled', 'shadow-sm');
-            nav.classList.add('shadow-none');
-        }
-    });
-}
-
-// Kiểm tra đăng nhập
-async function initAuthDisplay() {
-    const token = getAccessToken();
-    if (token) {
-        try {
-            const user = await fetchAPI('/users/me/');
-            document.getElementById('username-display').innerText = user.first_name || user.username;
-            document.getElementById('nav-auth').classList.add('d-none');
-            document.getElementById('nav-user').classList.remove('d-none');
-            if (user.is_staff || user.is_superuser) {
-                document.getElementById('admin-link').classList.remove('d-none');
-            }
-        } catch (e) { window.logout(); }
-    }
-}
-
-// Cập nhật giỏ hàng
-async function updateCartBadge() {
-    if (!getAccessToken()) return;
     try {
-        const cart = await fetchAPI('/cart/');
-        document.getElementById('cart-count-badge').innerText = cart.total_items || 0;
-    } catch (e) {}
+        const response = await fetch('/components/header.html');
+        if (!response.ok) throw new Error("Header not found");
+        placeholder.innerHTML = await response.text();
+        
+        // Sau khi HTML header xuất hiện, chạy các logic đi kèm:
+        checkAuth();           // Kiểm tra đăng nhập
+        updateCartBadge();     // <--- ĐÃ CÓ HÀM XỬ LÝ Ở DƯỚI
+        highlightActiveMenu(); // Active menu hiện tại
+        loadMegaMenuCategories(); // Tải danh mục vào Menu
+        
+    } catch (error) {
+        console.error("Lỗi tải Header:", error);
+    }
 }
 
-function handleGlobalSearch(event) {
-    event.preventDefault();
-    const query = document.getElementById('global-search').value;
-    alert("Đang tìm kiếm: " + query); // Thay bằng logic chuyển trang search của bạn
-}
+// --- 2. LOAD MEGA MENU ---
+async function loadMegaMenuCategories() {
+    const listInd = document.getElementById('menu-cat-ind');
+    const listEnt = document.getElementById('menu-cat-ent');
+    
+    if (!listInd || !listEnt) return;
 
-
-
-function initRealtimeSearch() {
-    const searchInput = document.getElementById('global-search');
-    const suggestionsBox = document.getElementById('search-suggestions');
-    let timeoutId;
-
-    if (!searchInput || !suggestionsBox) return;
-
-    // Lắng nghe sự kiện gõ phím
-    searchInput.addEventListener('input', function(e) {
-        clearTimeout(timeoutId); // Xóa lịch trình cũ nếu người dùng đang gõ liên tục
-        const query = e.target.value.trim().toLowerCase();
-
-        // Nếu gõ ít hơn 2 ký tự thì ẩn hộp gợi ý đi
-        if (query.length < 2) {
-            suggestionsBox.classList.add('d-none');
+    try {
+        const categories = await fetchAPI('/categories/');
+        
+        if (!categories || categories.length === 0) {
+            const emptyMsg = '<li class="text-muted small">Đang cập nhật...</li>';
+            listInd.innerHTML = emptyMsg;
+            listEnt.innerHTML = emptyMsg;
             return;
         }
 
-        // Hiện icon loading xoay xoay (Trải nghiệm người dùng)
-        suggestionsBox.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-danger"></div></div>';
-        suggestionsBox.classList.remove('d-none');
+        const htmlItems = categories.map(c => 
+            `<li class="col-6">
+                <a href="products.html?category=${c.id}" class="text-decoration-none hover-danger">
+                    <i class="fas fa-caret-right text-muted me-1 small"></i> ${c.name}
+                </a>
+            </li>`
+        ).join('');
 
-        // DEBOUNCE: Chờ 300ms sau khi ngừng gõ mới tiến hành tìm kiếm
-        timeoutId = setTimeout(async () => {
-            try {
-                // Tạm thời gọi API lấy toàn bộ sản phẩm rồi tự lọc (Nhanh nhất cho DB nhỏ/vừa)
-                const products = await fetchAPI('/products/');
-                const filtered = products.filter(p => p.name.toLowerCase().includes(query));
+        const viewAllHtml = `
+            <li class="col-12 mt-2 pt-2 border-top">
+                <a href="products.html" class="fw-bold text-danger text-decoration-none small">
+                    Xem tất cả gói <i class="fas fa-arrow-right ms-1"></i>
+                </a>
+            </li>
+        `;
 
-                renderSuggestions(filtered, query);
-            } catch (err) {
-                console.error("Lỗi tìm kiếm realtime:", err);
-            }
-        }, 300);
-    });
+        listInd.innerHTML = htmlItems + viewAllHtml;
+        listEnt.innerHTML = htmlItems + viewAllHtml;
 
-    // Ẩn kết quả khi click chuột ra chỗ khác trên màn hình
-    document.addEventListener('click', function(e) {
-        if (!searchInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
-            suggestionsBox.classList.add('d-none');
-        }
-    });
-    
-    // Hiện lại kết quả cũ khi bấm lại vào ô tìm kiếm
-    searchInput.addEventListener('focus', function() {
-        if (this.value.trim().length >= 2 && suggestionsBox.innerHTML !== '') {
-            suggestionsBox.classList.remove('d-none');
-        }
-    });
+    } catch (e) {
+        console.error("Lỗi Mega Menu:", e);
+        // Không làm gì để giữ nguyên UI mặc định hoặc ẩn đi
+    }
 }
 
-// Hàm vẽ danh sách kết quả rơi xuống
-function renderSuggestions(products, query) {
-    const suggestionsBox = document.getElementById('search-suggestions');
+// --- 3. LOAD FOOTER ---
+async function loadFooter() {
+    const placeholder = document.getElementById('footer-placeholder');
+    if (placeholder) {
+        try {
+            const response = await fetch('components/footer.html');
+            if (response.ok) {
+                placeholder.innerHTML = await response.text();
+                ensureChatWidgetScript();
+            }
+        } catch (e) { console.error("Lỗi tải Footer"); }
+    }
+}
+
+function ensureChatWidgetScript() {
+    if (window.__chatWidgetInitialized) return Promise.resolve();
+    if (chatWidgetScriptPromise) return chatWidgetScriptPromise;
+
+    const existingScript = document.querySelector('script[data-chat-widget-script="true"]');
+    if (existingScript) {
+        chatWidgetScriptPromise = Promise.resolve();
+        return chatWidgetScriptPromise;
+    }
+
+    chatWidgetScriptPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'user/js/chat-widget.js';
+        script.dataset.chatWidgetScript = 'true';
+        script.onload = () => resolve();
+        script.onerror = () => {
+            chatWidgetScriptPromise = null;
+            reject(new Error('Không thể tải chat widget script'));
+        };
+        document.body.appendChild(script);
+    });
+
+    return chatWidgetScriptPromise;
+}
+
+// --- 4. CHECK AUTH (Đăng nhập/Đăng xuất) ---
+async function checkAuth() {
+    const authSection = document.getElementById('auth-section');
+    if (!authSection) return;
+
+    const token = getAccessToken(); // Hàm từ common.js
     
-    if (products.length === 0) {
-        suggestionsBox.innerHTML = `<div class="p-3 text-muted small text-center">Không tìm thấy "${query}"</div>`;
+    if (token) {
+        try {
+            const user = await fetchAPI('/users/me/');
+            
+            // Menu quyền quản trị
+            let roleMenu = '';
+            if (['admin', 'super_admin', 'staff'].includes(user.role)) {
+                roleMenu = `<li><a class="dropdown-item text-danger fw-bold" href="admin/index.html"><i class="fas fa-cogs me-2"></i>Trang quản trị</a></li>
+                            <li><hr class="dropdown-divider"></li>`;
+            }
+
+            authSection.innerHTML = `
+                <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" role="button" data-bs-toggle="dropdown">
+                    <img src="${user.avatar || 'https://ui-avatars.com/api/?name=' + user.username}" class="rounded-circle border" width="35" height="35">
+                    <span class="d-none d-lg-block fw-bold small">${user.last_name || user.username}</span>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 animate__animated animate__fadeIn">
+                    <li><div class="px-3 py-2 text-muted small">Xin chào, <strong>${user.first_name || user.username}</strong></div></li>
+                    <li><hr class="dropdown-divider"></li>
+                    ${roleMenu}
+                    <li><a class="dropdown-item" href="profile.html"><i class="fas fa-user-circle me-2"></i>Hồ sơ của tôi</a></li>
+                    <li><a class="dropdown-item" href="user/index.html"><i class="fas fa-history me-2"></i>Đơn hàng đã mua</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="#" onclick="logout()"><i class="fas fa-sign-out-alt me-2"></i>Đăng xuất</a></li>
+                </ul>
+            `;
+        } catch (e) {
+            removeTokens();
+            authSection.innerHTML = `<a href="login.html" class="btn btn-danger rounded-pill px-4 fw-bold shadow-sm">Đăng nhập</a>`;
+        }
+    } else {
+        authSection.innerHTML = `<a href="login.html" class="btn btn-danger rounded-pill px-4 fw-bold shadow-sm">Đăng nhập</a>`;
+    }
+}
+
+// --- 5. HÀM CẬP NHẬT GIỎ HÀNG (MỚI THÊM) ---
+window.updateCartBadge = async function() {
+    const badge = document.getElementById('cart-count-badge');
+    if (!badge) return;
+
+    const token = getAccessToken();
+    if (!token) {
+        badge.style.display = 'none';
         return;
     }
 
-    // Chỉ hiển thị tối đa 5 kết quả đầu tiên cho gọn
-    const topResults = products.slice(0, 5);
+    try {
+        // Gọi API lấy giỏ hàng
+        const cartItems = await fetchAPI('/cart/');
+        
+        // Đếm tổng số lượng (Tùy cấu trúc API trả về list hay object)
+        let count = 0;
+        if (Array.isArray(cartItems)) {
+            count = cartItems.length;
+        } else if (cartItems && cartItems.results) {
+            count = cartItems.results.length;
+        }
 
-    let html = topResults.map(p => {
-        // Xử lý đường dẫn ảnh an toàn (Fix 404)
-        let imageUrl = 'https://placehold.co/100x100/f8f9fa/d71920?text=TIS';
-        if (p.images && p.images.length > 0 && p.images[0].image) {
-            let imgPath = p.images[0].image;
-            if (imgPath.startsWith('http')) imageUrl = imgPath;
-            else {
-                if (!imgPath.includes('/media/')) imgPath = imgPath.startsWith('/') ? `/media${imgPath}` : `/media/${imgPath}`;
-                imageUrl = DOMAIN + imgPath;
+        if (count > 0) {
+            badge.innerText = count;
+            badge.style.display = 'inline-block'; // Hiện badge
+            badge.classList.add('animate__animated', 'animate__bounceIn'); // Hiệu ứng nhảy
+        } else {
+            badge.style.display = 'none';
+        }
+    } catch (e) {
+        console.error("Không thể tải giỏ hàng:", e);
+        badge.style.display = 'none';
+    }
+};
+
+// --- 6. HÀM ĐĂNG XUẤT (MỚI THÊM) ---
+window.logout = function() {
+    removeTokens();
+    window.location.href = 'login.html';
+};
+
+// --- 7. HELPER: Highlight Menu ---
+function highlightActiveMenu() {
+    const path = window.location.pathname;
+    const page = path.split("/").pop();
+    
+    const links = document.querySelectorAll('.navbar-nav .nav-link');
+    links.forEach(link => {
+        if (link.getAttribute('href') === page) {
+            link.classList.add('text-danger', 'active');
+        }
+    });
+}
+
+// --- 8. XỬ LÝ TÌM KIẾM ---
+window.handleGlobalSearch = function(e) {
+    e.preventDefault();
+    const keyword = document.getElementById('global-search').value.trim();
+    if(keyword) {
+        window.location.href = `products.html?search=${encodeURIComponent(keyword)}`;
+    }
+}
+document.addEventListener("DOMContentLoaded", function() {
+    // Chờ một chút để header được nạp xong (nếu bạn dùng fetch)
+    setTimeout(() => {
+        const chatMenuItem = document.getElementById('chat-menu-item');
+        
+        // Sử dụng hàm getAccessToken() có sẵn trong core.js của bạn
+        if (typeof getAccessToken === 'function' && getAccessToken()) {
+            if (chatMenuItem) {
+                chatMenuItem.style.display = 'block'; // Hiển thị nếu đã login
+            }
+        } else {
+            if (chatMenuItem) {
+                chatMenuItem.style.display = 'none'; // Ẩn nếu chưa login
             }
         }
-        
-        let priceDisplay = p.base_price ? formatMoney(p.base_price) : 'Liên hệ';
-
-        // Trả về HTML cho 1 dòng sản phẩm
-        return `
-            <a href="product-detail.html?id=${p.id}" class="suggestion-item">
-                <img src="${imageUrl}" alt="${p.name}" class="suggestion-img">
-                <div>
-                    <h6 class="mb-1 fw-bold suggestion-title">${p.name}</h6>
-                    <span class="text-danger fw-bold small">${priceDisplay}</span>
-                </div>
-            </a>
-        `;
-    }).join('');
-    
-    // Nếu có nhiều hơn 5 kết quả, hiện nút "Xem tất cả" để sang trang products.html
-    if (products.length > 5) {
-        html += `
-            <a href="products.html?search=${encodeURIComponent(query)}" class="d-block text-center p-2 bg-light text-danger fw-bold small text-decoration-none border-top transition-hover">
-                Xem thêm ${products.length - 5} kết quả <i class="fas fa-arrow-right ms-1"></i>
-            </a>
-        `;
-    }
-
-    suggestionsBox.innerHTML = html;
-}
+    }, 100); // Delay nhẹ để đảm bảo DOM đã sẵn sàng
+});
